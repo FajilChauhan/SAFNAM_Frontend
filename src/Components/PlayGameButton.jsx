@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import api from "../services/api";
+import { getUserIdFromToken } from "../utils/Auth";
 
 const PlayGameButton = () => {
   const [showGame, setShowGame] = useState(false);
@@ -6,108 +8,132 @@ const PlayGameButton = () => {
   const [tapVisible, setTapVisible] = useState(false);
   const [tapStyle, setTapStyle] = useState({});
   const [startTime, setStartTime] = useState(null);
-  const [todayDiscount, setTodayDiscount] = useState(getStoredDiscount());
+  const [todayDiscount, setTodayDiscount] = useState(null);
 
-  // --- LOCAL STORAGE HANDLER ---
-  function getStoredDiscount() {
-    const data = JSON.parse(localStorage.getItem("gameDiscount"));
-    const today = new Date().toISOString().split("T")[0];
-    if (data && data.date === today) return data;
-    return null;
-  }
+  const userId = getUserIdFromToken();
 
-  const saveDiscount = (value, used = false) => {
-    const today = new Date().toISOString().split("T")[0];
-    const data = { date: today, discount: value, used };
-    localStorage.setItem("gameDiscount", JSON.stringify(data));
-    setTodayDiscount(data);
-  };
+  // ✅ Check if user already played
+  useEffect(() => {
+    if (!userId) return;
 
-  // --- CHECKS ---
-  const checkIfCanPlay = () => {
-    const data = getStoredDiscount();
-    if (data && data.date === new Date().toISOString().split("T")[0]) {
-      if (data.used) {
-        alert("🎯 You’ve already used your discount today! Come back tomorrow 😄");
-      } else {
-        alert("🎮 You’ve already played today! You can’t play again until tomorrow.");
-      }
-      return false;
-    }
-    return true;
-  };
+    api.get(`/gamediscount/${userId}`)
+      .then(res => {
+        if (res.data) setTodayDiscount(res.data);
+      })
+      .catch(() => {});
+  }, [userId]);
 
   // --- START GAME ---
   const startGame = () => {
-    if (!checkIfCanPlay()) return;
+
+    if (todayDiscount) {
+      alert("🎮 You have already played today!");
+      return;
+    }
 
     setShowGame(true);
     setGameStarted(false);
     setTapVisible(false);
 
     const delay = Math.random() * 2000 + 1000;
+
     setTimeout(() => {
       const randomTop = Math.random() * 60 + 20;
       const randomLeft = Math.random() * 60 + 20;
-      const randomColor = `hsl(${Math.random() * 360}, 80%, 55%)`;
+      const randomColor = `hsl(${Math.random() * 360},80%,55%)`;
 
       setTapStyle({
         top: `${randomTop}%`,
         left: `${randomLeft}%`,
-        backgroundColor: randomColor,
+        backgroundColor: randomColor
       });
 
       setTapVisible(true);
       setGameStarted(true);
       setStartTime(Date.now());
+
     }, delay);
   };
 
-  // --- HANDLE TAP ---
-  const handleTap = () => {
+  // --- TAP EVENT ---
+  const handleTap = async () => {
+
     if (!gameStarted) return;
 
     const reactionTime = (Date.now() - startTime) / 1000;
     let earnedDiscount = 0;
+    let points = 0;
 
-    if (reactionTime <= 0.75) earnedDiscount = 15;
-    else if (reactionTime <= 1.5) earnedDiscount = 10;
-    else if (reactionTime <= 2.5) earnedDiscount = 5;
+    if (reactionTime <= 0.75) {
+      earnedDiscount = 15;
+      points = 150;
+    }
+    else if (reactionTime <= 1.5) {
+      earnedDiscount = 10;
+      points = 100;
+    }
+    else if (reactionTime <= 2.5) {
+      earnedDiscount = 5;
+      points = 50;
+    }
 
     setShowGame(false);
     setGameStarted(false);
 
-    // ✅ Only save the discount as available, do NOT apply directly
-    saveDiscount(earnedDiscount, false);
+    try {
 
-    if (earnedDiscount > 0) {
-      alert(`⚡ You tapped in ${reactionTime.toFixed(2)}s and earned ${earnedDiscount}% discount! 🎉`);
-    } else {
-      alert(`😢 You tapped in ${reactionTime.toFixed(2)}s — no discount this time!`);
-      saveDiscount(0, true); // mark as used if no win
+      await api.post("/gamediscount", {
+        userId: userId,
+        gamePoint: points,
+        discount: earnedDiscount
+      });
+
+      setTodayDiscount({
+        discount: earnedDiscount,
+        applied: false
+      });
+
+      if (earnedDiscount > 0) {
+        alert(`⚡ You tapped in ${reactionTime.toFixed(2)}s and earned ${earnedDiscount}% discount!`);
+      }
+      else {
+        alert(`😢 Too slow (${reactionTime.toFixed(2)}s). No discount.`);
+      }
+
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save game result");
     }
+
   };
 
   return (
     <div className="text-center">
+
       <button
-        onClick={todayDiscount && todayDiscount.used ? () => alert("🎯 You’ve already used your discount today!") : startGame}
+        onClick={startGame}
         className={`mt-[20px] px-7 py-4 rounded-full font-medium transition-all ${
-          todayDiscount && todayDiscount.discount > 0 ? "bg-green-500 hover:bg-green-600 text-white" : "bg-orange-500 hover:bg-orange-600 text-white"
+          todayDiscount
+            ? "bg-green-500 hover:bg-green-600 text-white"
+            : "bg-orange-500 hover:bg-orange-600 text-white"
         }`}
       >
         {todayDiscount
-          ? todayDiscount.used
-            ? `✅ ${todayDiscount.discount}% Used Today`
-            : `🎮 Play Game to Earn Discount`
+          ? `✅ ${todayDiscount.discount}% Discount Earned`
           : "🎮 Play Game to Win Discount"}
       </button>
 
-      {/* --- GAME POPUP --- */}
+      {/* GAME POPUP */}
       {showGame && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50">
           <div className="relative bg-white p-6 rounded-2xl shadow-lg w-[500px] h-[500px] flex flex-col items-center justify-center text-center">
-            {!tapVisible && <p className="text-lg font-semibold text-gray-700">Wait for “TAP NOW!”...</p>}
+
+            {!tapVisible && (
+              <p className="text-lg font-semibold text-gray-700">
+                Wait for “TAP NOW!”...
+              </p>
+            )}
+
             {tapVisible && (
               <button
                 onClick={handleTap}
@@ -117,15 +143,18 @@ const PlayGameButton = () => {
                 TAP NOW!
               </button>
             )}
+
             <button
               onClick={() => setShowGame(false)}
               className="absolute top-3 right-3 text-gray-500 hover:text-red-500 text-xl font-bold"
             >
               ✖
             </button>
+
           </div>
         </div>
       )}
+
     </div>
   );
 };

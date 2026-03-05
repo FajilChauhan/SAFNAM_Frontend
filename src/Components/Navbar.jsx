@@ -9,16 +9,20 @@ const Navbar = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const timeoutRef = useRef(null);
+  const [role, setRole] = useState("");
+  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
 
   // Check login status
   useEffect(() => {
     const token = localStorage.getItem("token");
-    const name = localStorage.getItem("username");
+const name = localStorage.getItem("username");
+const userRole = localStorage.getItem("role");
 
-    if (token) {
-      setIsLoggedIn(true);
-      setUsername(name);
-    }
+if (token) {
+  setIsLoggedIn(true);
+  setUsername(name);
+  setRole(userRole);
+}
   }, []);
 
   // Scroll effect
@@ -45,6 +49,16 @@ const Navbar = () => {
     }, 300);
   };
 
+  const handleAdminEnter = () => {
+  if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  setShowAdminDropdown(true);
+};
+
+const handleAdminLeave = () => {
+  timeoutRef.current = setTimeout(() => {
+    setShowAdminDropdown(false);
+  }, 300);
+};
   // Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -98,7 +112,64 @@ const Navbar = () => {
             </ul>
           )}
         </li>
+        
+        {role === "Admin" && (
+  <li
+    className="relative cursor-pointer hover:text-orange-400"
+    onMouseEnter={handleAdminEnter}
+    onMouseLeave={handleAdminLeave}
+  >
+    Admin ▾
 
+    {showAdminDropdown && (
+      <ul className="absolute top-8 left-0 bg-white text-black rounded shadow-lg py-2 w-48">
+
+        <li
+          onClick={() => navigate("/admin/menu")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Menu
+        </li>
+
+        <li
+          onClick={() => navigate("/admin/rooms")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Rooms
+        </li>
+
+        <li
+          onClick={() => navigate("/admin/roombooking")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Room Booking
+        </li>
+
+        <li
+          onClick={() => navigate("/admin/order")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Orders
+        </li>
+
+        <li
+          onClick={() => navigate("/admin/table")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Tables
+        </li>
+
+        <li
+          onClick={() => navigate("/admin/booktable")}
+          className="px-4 py-2 hover:bg-orange-100"
+        >
+          Table Booking
+        </li>
+
+      </ul>
+    )}
+  </li>
+)}
         {/* AUTH SECTION */}
         {!isLoggedIn ? (
           <>
