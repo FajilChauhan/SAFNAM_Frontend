@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import BookTable from './pages/BookTable';
 import BookOrder from './pages/BookOrder';
 import { Route, Routes } from 'react-router-dom';
+import { Toaster } from "react-hot-toast";
 import About from './pages/About';
 import BookRoom from './pages/BookRoom';
 import PhotoRestro from './pages/PhotoRestro';
@@ -19,6 +20,7 @@ import AdminTableBooking from "./pages/admin/AdminTableBooking";
 const App = () => {
   return (
     <div>
+      <Toaster position="top-right" />
       <Routes>
         <Route path='/' element={<Home/>}/>
         <Route path='/about' element={<About/>}/>

@@ -5,12 +5,14 @@ import Navbar from "../Components/Navbar";
 import Connect_Us from "./Connect_Us";
 import PlayGameButton from "../Components/PlayGameButton";
 import UseDiscountCheckbox from "../Components/UseDiscountCheckbox";
+import toast from "react-hot-toast";
 
 const BookOrder = () => {
   const [selectedItems, setSelectedItems] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [discount, setDiscount] = useState(0);
   const [menuItems, setMenuItems] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     address: "",
@@ -21,7 +23,7 @@ const BookOrder = () => {
   useEffect(() => {
     api.get("/menu")
       .then(res => setMenuItems(res.data))
-      .catch(err => console.error(err));
+      .catch(() => toast.error("Failed to load menu"));
   }, []);
 
   // select item
@@ -39,7 +41,7 @@ const BookOrder = () => {
   const handleQtyChange = (id, value) => {
     setFormData({
       ...formData,
-      quantities: { ...formData.quantities, [id]: value }
+      quantities: { ...formData.quantities, [id]: Number(value) }
     });
   };
 
@@ -49,77 +51,94 @@ const BookOrder = () => {
 
   // ✅ SUBMIT ORDER
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const token = localStorage.getItem("token");
-  if (!token) {
-    alert("Please login first");
-    return;
-  }
+    const token = localStorage.getItem("token");
 
-  const userId = getUserIdFromToken();
-  if (!userId) {
-    alert("Session expired. Please login again.");
-    return;
-  }
-
-  if (!formData.address) {
-    alert("Please enter address");
-    return;
-  }
-
-  try {
-
-    const items = selectedItems.map(id => ({
-      id: 0,
-      orderId: 0,
-      menuId: id,
-      quantity: formData.quantities[id] || 1
-    }));
-
-    let totalAmount = items.reduce((sum, item) => {
-      const menuItem = menuItems.find(m => m.id === item.menuId);
-      return sum + (menuItem.price * item.quantity);
-    }, 0);
-
-    if (discount > 0) {
-      totalAmount -= totalAmount * discount / 100;
+    if (!token) {
+      toast.error("Please login first");
+      return;
     }
 
-    const orderPayload = {
-      order: {
+    const userId = getUserIdFromToken();
+
+    if (!userId) {
+      toast.error("Session expired. Please login again.");
+      localStorage.clear();
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!formData.address) {
+      toast.error("Please enter address");
+      return;
+    }
+
+    if (selectedItems.length === 0) {
+      toast.error("Please select at least one item");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const loadingToast = toast.loading("Placing your order...");
+
+      const items = selectedItems.map(id => ({
         id: 0,
-        userId: userId,
-        address: formData.address,
-        totalAmount: totalAmount,
-        paymentStatus: "Pending",
-        status: "1"
-      },
-      items: items
-    };
+        orderId: 0,
+        menuId: id,
+        quantity: formData.quantities[id] || 1
+      }));
 
-    console.log(orderPayload);
+      let totalAmount = items.reduce((sum, item) => {
+        const menuItem = menuItems.find(m => m.id === item.menuId);
+        return sum + (menuItem.price * item.quantity);
+      }, 0);
 
-    await api.post("/order", orderPayload);
+      // discount
+      if (discount > 0) {
+        totalAmount -= (totalAmount * discount) / 100;
+      }
 
-    alert("✅ Order placed successfully!");
+      const orderPayload = {
+        order: {
+          id: 0,
+          userId: userId,
+          address: formData.address,
+          totalAmount: totalAmount,
+          paymentStatus: "Pending",
+          status: "Pending"
+        },
+        items: items
+      };
 
-    setShowForm(false);
-    setSelectedItems([]);
-    setFormData({ address: "", quantities: {} });
-    setDiscount(0);
+      await api.post("/order", orderPayload);
 
-  } catch (error) {
-    if (error.response?.status === 401) {
-    alert("Session expired. Please login again.");
-    localStorage.clear();
-    window.location.href = "/login";
-    return;
-  }
-    console.error(error);
-    alert("Order failed");
-  }
-};
+      toast.dismiss(loadingToast);
+      toast.success("🎉 Order placed successfully!");
+
+      // reset
+      setShowForm(false);
+      setSelectedItems([]);
+      setFormData({ address: "", quantities: {} });
+      setDiscount(0);
+
+    } catch (error) {
+      console.error(error);
+      toast.dismiss();
+
+      if (error.response?.status === 401) {
+        toast.error("Session expired. Please login again.");
+        localStorage.clear();
+        window.location.href = "/login";
+        return;
+      }
+
+      toast.error(error.response?.data || "Order failed. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <>
@@ -228,9 +247,13 @@ const BookOrder = () => {
                 <UseDiscountCheckbox onDiscountApply={setDiscount} />
 
                 <div className="flex gap-3 mt-4">
-                  <button className="flex-1 bg-orange-500 text-white py-2 rounded">
-                    Confirm
+                  <button
+                    disabled={loading}
+                    className="flex-1 bg-orange-500 text-white py-2 rounded"
+                  >
+                    {loading ? "Processing..." : "Confirm"}
                   </button>
+
                   <button
                     type="button"
                     onClick={()=>setShowForm(false)}

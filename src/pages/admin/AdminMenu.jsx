@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import api from "../../services/api";
 import { Pencil, Trash2 } from "lucide-react";
 import Navbar from "../../Components/Navbar";
@@ -8,22 +8,20 @@ const AdminMenu = () => {
   const [menu, setMenu] = useState([]);
   const [editId, setEditId] = useState(null);
 
+  const fileInputRef = useRef(null);
+
   const [form, setForm] = useState({
     itemName: "",
     price: "",
     type: "",
-    isAvailable: true,
+    isAvailable: false,
     image: null
   });
 
   // LOAD MENU
   const loadMenu = async () => {
-    try {
-      const res = await api.get("/menu");
-      setMenu(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+    const res = await api.get("/menu");
+    setMenu(res.data);
   };
 
   useEffect(() => {
@@ -40,7 +38,7 @@ const AdminMenu = () => {
     });
   };
 
-  // IMAGE CHANGE
+  // IMAGE
   const handleImage = (e) => {
     setForm({
       ...form,
@@ -48,7 +46,24 @@ const AdminMenu = () => {
     });
   };
 
-  // SAVE MENU
+  // RESET FORM
+  const resetForm = () => {
+    setEditId(null);
+
+    setForm({
+      itemName: "",
+      price: "",
+      type: "",
+      isAvailable: false,
+      image: null
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // SAVE
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -67,8 +82,10 @@ const AdminMenu = () => {
 
       if (editId) {
         await api.put(`/menu/${editId}`, data);
+        alert("Menu item updated successfully");
       } else {
         await api.post("/menu", data);
+        alert("Menu item added successfully");
       }
 
       resetForm();
@@ -80,7 +97,7 @@ const AdminMenu = () => {
     }
   };
 
-  // EDIT MENU
+  // EDIT
   const handleEdit = (item) => {
 
     setEditId(item.id);
@@ -96,48 +113,31 @@ const AdminMenu = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // DELETE MENU
+  // DELETE
   const handleDelete = async (id) => {
 
     if (!window.confirm("Delete this menu item?")) return;
 
-    try {
-      await api.delete(`/menu/${id}`);
-      loadMenu();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+    await api.delete(`/menu/${id}`);
+    alert("Menu item deleted");
 
-  // RESET FORM
-  const resetForm = () => {
-
-    setEditId(null);
-
-    setForm({
-      itemName: "",
-      price: "",
-      type: "",
-      isAvailable: true,
-      image: null
-    });
+    loadMenu();
   };
 
   return (
     <>
       <Navbar />
 
-      <div className="pt-24 px-10 min-h-screen bg-gray-100 text-black">
-
-        {/* PAGE TITLE */}
-        <h1 className="text-3xl font-bold text-orange-500 mb-8">
+      <div className="pt-24 px-10 min-h-screen bg-gray-200 text-black">
+        <div className="border-b-2 border-black w-full"></div>
+        <h1 className="mt-10 text-4xl font-bold text-orange-500 mb-10 text-center">
           Menu Management
         </h1>
 
-        {/* FORM CARD */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-10">
+        {/* FORM */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
 
-          <h2 className="text-xl font-semibold mb-6">
+          <h2 className="text-2xl font-semibold mb-6">
             {editId ? "Edit Menu Item" : "Add Menu Item"}
           </h2>
 
@@ -173,7 +173,7 @@ const AdminMenu = () => {
                 className="border rounded-lg p-3 w-full"
               />
 
-              <label className="flex items-center gap-2 mt-3">
+              <label className="flex items-center gap-3 mt-3 text-lg">
                 <input
                   type="checkbox"
                   name="isAvailable"
@@ -183,18 +183,28 @@ const AdminMenu = () => {
                 Available
               </label>
 
+            </div>
+
+            {/* FILE INPUT FIXED UI */}
+            <div className="mt-6">
+
+              <label className="block mb-2 font-medium">
+                Upload Image
+              </label>
+
               <input
                 type="file"
+                ref={fileInputRef}
                 onChange={handleImage}
-                className="border rounded-lg p-3 col-span-2"
+                className="w-full border rounded-lg p-3 bg-gray-50"
               />
 
             </div>
 
-            <div className="flex gap-4 mt-6">
+            <div className="flex gap-4 mt-8">
 
               <button
-                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-lg"
+                className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg"
               >
                 {editId ? "Update" : "Save"}
               </button>
@@ -203,7 +213,7 @@ const AdminMenu = () => {
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="bg-gray-400 text-white px-6 py-2 rounded-lg"
+                  className="bg-gray-400 text-white px-8 py-3 rounded-lg"
                 >
                   Cancel
                 </button>
@@ -215,102 +225,87 @@ const AdminMenu = () => {
 
         </div>
 
-        {/* TABLE CARD */}
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        {/* TABLE */}
+        <div className="bg-white rounded-xl shadow-lg p-8">
 
-          <h2 className="text-xl font-semibold mb-6">
+          <h2 className="text-2xl font-semibold mb-6">
             Menu Items
           </h2>
 
-          <div className="overflow-x-auto">
+          <table className="w-full text-left">
 
-            <table className="w-full text-left">
+            <thead className="bg-gray-100">
 
-              <thead className="bg-gray-200">
+              <tr>
 
-                <tr>
-                  <th className="p-3">Image</th>
-                  <th className="p-3">Name</th>
-                  <th className="p-3">Price</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Available</th>
-                  <th className="p-3 text-center">Actions</th>
+                <th className="p-4">Image</th>
+                <th className="p-4">Name</th>
+                <th className="p-4">Price</th>
+                <th className="p-4">Type</th>
+                <th className="p-4">Available</th>
+                <th className="p-4 text-center">Actions</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {menu.map((item) => (
+
+                <tr key={item.id} className="border-b hover:bg-gray-50">
+
+                  <td className="p-4">
+                    <img
+                      src={`https://localhost:7257${item.imagePath}`}
+                      className="w-16 h-16 rounded-lg object-cover"
+                      alt=""
+                    />
+                  </td>
+
+                  <td className="p-4 font-medium">
+                    {item.itemName}
+                  </td>
+
+                  <td className="p-4">
+                    ₹{item.price}
+                  </td>
+
+                  <td className="p-4">
+                    {item.type}
+                  </td>
+
+                  <td className="p-4">
+                    {item.isAvailable ? "Yes" : "No"}
+                  </td>
+
+                  <td className="p-4">
+
+                    <div className="flex justify-center gap-6">
+
+                      <Pencil
+                        size={20}
+                        className="cursor-pointer text-blue-500"
+                        onClick={() => handleEdit(item)}
+                      />
+
+                      <Trash2
+                        size={20}
+                        className="cursor-pointer text-red-500"
+                        onClick={() => handleDelete(item.id)}
+                      />
+
+                    </div>
+
+                  </td>
+
                 </tr>
 
-              </thead>
+              ))}
 
-              <tbody>
+            </tbody>
 
-                {menu.map((item) => (
-
-                  <tr
-                    key={item.id}
-                    className="border-b hover:bg-gray-50"
-                  >
-
-                    <td className="p-3">
-                      <img
-                        src={`https://localhost:7257${item.imagePath}`}
-                        className="w-16 h-16 rounded-lg object-cover"
-                        alt=""
-                      />
-                    </td>
-
-                    <td className="p-3 font-medium">
-                      {item.itemName}
-                    </td>
-
-                    <td className="p-3">
-                      ₹{item.price}
-                    </td>
-
-                    <td className="p-3">
-                      {item.type}
-                    </td>
-
-                    <td className="p-3">
-                      {item.isAvailable ? (
-                        <span className="text-green-600 font-semibold">
-                          Yes
-                        </span>
-                      ) : (
-                        <span className="text-red-500 font-semibold">
-                          No
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="p-3">
-
-                      <div className="flex justify-center gap-4">
-
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="text-blue-500 hover:text-blue-700"
-                        >
-                          <Pencil size={20} />
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={20} />
-                        </button>
-
-                      </div>
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
-          </div>
+          </table>
 
         </div>
 

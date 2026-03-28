@@ -6,11 +6,13 @@ import PlayGameButton from "../Components/PlayGameButton";
 import UseDiscountCheckbox from "../Components/UseDiscountCheckbox";
 import Connect_Us from "./Connect_Us";
 import api from "../services/api";
+import toast from "react-hot-toast";
 
 const BookRoom = () => {
   const [rooms, setRooms] = useState([]);
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [discount, setDiscount] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     checkin: "",
@@ -21,7 +23,7 @@ const BookRoom = () => {
   useEffect(() => {
     api.get("/room")
       .then(res => setRooms(res.data))
-      .catch(err => console.error(err));
+      .catch(() => toast.error("Failed to load rooms"));
   }, []);
 
   const handleInputChange = (e) => {
@@ -32,76 +34,96 @@ const BookRoom = () => {
     setSelectedRoom(room);
   };
 
-  const handleBooking = async (e) => {
-    e.preventDefault();
+const handleBooking = async (e) => {
+  e.preventDefault();
 
-    const userId = getUserIdFromToken();
-    if (!userId) {
-      alert("Please login first");
-      return;
-    }
+  const userId = getUserIdFromToken();
 
-    if (!formData.checkin || !formData.checkout) {
-      alert("Please select dates");
-      return;
-    }
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const checkinDate = new Date(formData.checkin);
-    const checkoutDate = new Date(formData.checkout);
-
-    if (checkinDate < today) {
-      alert("Check-in date cannot be before today");
-      return;
-    }
-
-    if (checkoutDate <= checkinDate) {
-      alert("Check-out must be after check-in");
-      return;
-    }
-
-    try {
-      // check existing bookings
-      const res = await api.get(`/roombooking/room/${selectedRoom.id}`);
-
-      const conflict = res.data.some(b => {
-        const bookedIn = new Date(b.checkIn || b.checkin);
-        const bookedOut = new Date(b.checkOut || b.checkout);
-        return checkinDate < bookedOut && checkoutDate > bookedIn;
-      });
-
-      if (conflict) {
-        alert("❌ This room is not available for selected dates");
-        return;
-      }
-
-      await api.post("/roombooking", {
-        roomId: selectedRoom.id,
-        userId: userId,
-        checkIn: formData.checkin,
-        checkOut: formData.checkout,
-        status: true
-      });
-
-      alert(`✅ Booking Confirmed! ${discount ? `(${discount}% OFF Applied)` : ""}`);
-
-      setSelectedRoom(null);
-      setFormData({ checkin: "", checkout: "" });
-      setDiscount(0);
-
-    } catch (err) {
-      if (err.response?.status === 401) {
-    alert("Session expired. Please login again.");
-    localStorage.clear();
-    window.location.href = "/login";
+  if (!userId) {
+    toast.error("Please login first");
     return;
   }
-      console.error(err);
-      alert("Booking failed");
+
+  if (!formData.checkin || !formData.checkout) {
+    toast.error("Please select dates");
+    return;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const checkinDate = new Date(formData.checkin);
+  const checkoutDate = new Date(formData.checkout);
+
+  if (checkinDate < today) {
+    toast.error("Check-in date cannot be before today");
+    return;
+  }
+
+  if (checkoutDate <= checkinDate) {
+    toast.error("Check-out must be after check-in");
+    return;
+  }
+
+  let loadingToast;
+
+  try {
+    setLoading(true);
+
+    // ✅ STEP 1: CHECK AVAILABILITY
+    loadingToast = toast.loading("Checking availability...");
+
+    const res = await api.get(`/roombooking/room/${selectedRoom.id}`);
+
+    const conflict = res.data.some(b => {
+      const bookedIn = new Date(b.checkIn || b.checkin);
+      const bookedOut = new Date(b.checkOut || b.checkout);
+      return checkinDate < bookedOut && checkoutDate > bookedIn;
+    });
+
+    if (conflict) {
+      toast.dismiss(loadingToast);
+      toast.error("❌ Room not available for selected dates");
+      return;
     }
-  };
+
+    // ✅ IMPORTANT FIX: DISMISS FIRST TOAST
+    toast.dismiss(loadingToast);
+
+    // ✅ STEP 2: BOOK ROOM
+    const bookingToast = toast.loading("Booking your room...");
+
+    await api.post("/roombooking", {
+      roomId: selectedRoom.id,
+      userId: userId,
+      checkIn: formData.checkin,
+      checkOut: formData.checkout,
+      status: "Booked"
+    });
+
+    toast.dismiss(bookingToast);
+    toast.success(`🎉 Booking Confirmed! ${discount ? `(${discount}% OFF Applied)` : ""}`);
+
+    setSelectedRoom(null);
+    setFormData({ checkin: "", checkout: "" });
+    setDiscount(0);
+
+  } catch (err) {
+    console.error(err);
+
+    if (loadingToast) toast.dismiss(loadingToast);
+
+    toast.error(err.response?.data || "Booking failed. Try again.");
+
+    if (err.response?.status === 401) {
+      localStorage.clear();
+      window.location.href = "/login";
+    }
+
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>
@@ -119,8 +141,6 @@ const BookRoom = () => {
 
         <p className="max-w-3xl text-lg sm:text-xl mb-6">
           Experience comfort and luxury at SAFNAM Hotel.
-          Play our mini-game to unlock exclusive discounts
-          and enjoy a relaxing stay at the best price.
         </p>
 
         <PlayGameButton onDiscountEarned={(val)=>setDiscount(val)} />
@@ -147,7 +167,7 @@ const BookRoom = () => {
               />
 
               <div className="p-5">
-                <h3 className="text-xl font-bold text-black">
+                <h3 className="text-xl font-bold">
                   Room {room.roomNo} - {room.type}
                 </h3>
 
@@ -167,7 +187,7 @@ const BookRoom = () => {
         </div>
       </div>
 
-      {/* BOOKING MODAL */}
+      {/* MODAL */}
       {selectedRoom && (
         <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 text-black">
@@ -219,9 +239,10 @@ const BookRoom = () => {
 
                 <button
                   type="submit"
+                  disabled={loading}
                   className="bg-orange-500 text-white px-5 py-2 rounded"
                 >
-                  Confirm Booking {discount>0 && `(−${discount}% applied)`}
+                  {loading ? "Processing..." : `Confirm Booking ${discount>0 ? `(−${discount}%)` : ""}`}
                 </button>
               </div>
 
