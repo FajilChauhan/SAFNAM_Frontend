@@ -1,68 +1,107 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Navbar from "../../Components/Navbar";
 import api from "../../services/api";
 import { Pencil, Trash2 } from "lucide-react";
+import toast from "react-hot-toast";
 
 const AdminRooms = () => {
 
   const [rooms, setRooms] = useState([]);
+  const [filteredRooms, setFilteredRooms] = useState([]);
 
   const [editingId, setEditingId] = useState(null);
+  const fileRef = useRef(null);
+
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [priceFilter, setPriceFilter] = useState("");
+
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [form, setForm] = useState({
     roomNo: "",
     type: "",
     pricePerDay: "",
-    image: null
+    image: null,
+    preview: null
   });
 
+  // ================= LOAD =================
   const loadRooms = async () => {
     const res = await api.get("/room");
     setRooms(res.data);
+    setFilteredRooms(res.data);
   };
 
   useEffect(() => {
     loadRooms();
   }, []);
 
-  const handleChange = (e) => {
+  // ================= FILTER =================
+  useEffect(() => {
+    let data = [...rooms];
 
+    if (search) {
+      data = data.filter(r =>
+        r.roomNo.toString().includes(search)
+      );
+    }
+
+    if (typeFilter) {
+      data = data.filter(r => r.type === typeFilter);
+    }
+
+    if (priceFilter) {
+      data = data.filter(r => r.pricePerDay <= priceFilter);
+    }
+
+    setFilteredRooms(data);
+    setCurrentPage(1);
+
+  }, [search, typeFilter, priceFilter, rooms]);
+
+  // ================= PAGINATION =================
+  const indexOfLast = currentPage * pageSize;
+  const currentData = filteredRooms.slice(indexOfLast - pageSize, indexOfLast);
+  const totalPages = Math.ceil(filteredRooms.length / pageSize);
+
+  // ================= FORM =================
+  const handleChange = (e) => {
     const { name, value } = e.target;
 
     setForm({
       ...form,
       [name]: value
     });
-
   };
 
-  const handleFile = (e) => {
+  const handleImage = (e) => {
+    const file = e.target.files[0];
 
     setForm({
       ...form,
-      image: e.target.files[0]
+      image: file,
+      preview: URL.createObjectURL(file)
     });
-
   };
 
   const resetForm = () => {
+    setEditingId(null);
 
     setForm({
       roomNo: "",
       type: "",
       pricePerDay: "",
-      image: null
+      image: null,
+      preview: null
     });
 
-    setEditingId(null);
-
-    document.getElementById("fileInput").value = "";
-
+    if (fileRef.current) fileRef.current.value = "";
   };
 
-  // SAVE ROOM
+  // ================= SAVE =================
   const handleSubmit = async (e) => {
-
     e.preventDefault();
 
     const data = new FormData();
@@ -71,88 +110,72 @@ const AdminRooms = () => {
     data.append("Type", form.type);
     data.append("PricePerDay", form.pricePerDay);
 
-    if (form.image)
+    if (form.image) {
       data.append("image", form.image);
+    }
+
+    const t = toast.loading(editingId ? "Updating..." : "Saving...");
 
     try {
 
       if (editingId) {
-
         await api.put(`/room/${editingId}`, data);
-
-        alert("Room updated successfully");
-
+        toast.success("Updated successfully", { id: t });
       } else {
-
         await api.post("/room", data);
-
-        alert("Room added successfully");
-
+        toast.success("Added successfully", { id: t });
       }
 
       resetForm();
-
       loadRooms();
 
     } catch (err) {
-
-      console.error(err);
-
-      alert("Error saving room");
-
+      toast.error(err.response?.data || "Error", { id: t });
     }
-
   };
 
-  // EDIT ROOM
+  // ================= EDIT =================
   const handleEdit = (room) => {
-
     setEditingId(room.id);
 
     setForm({
       roomNo: room.roomNo,
       type: room.type,
       pricePerDay: room.pricePerDay,
-      image: null
+      image: null,
+      preview: `https://localhost:7257${room.imagePath}`
     });
 
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // DELETE ROOM
+  // ================= DELETE =================
   const handleDelete = async (id) => {
+    const t = toast.loading("Deleting...");
 
-    if (!window.confirm("Delete this room?"))
-      return;
-
-    await api.delete(`/room/${id}`);
-
-    alert("Room deleted");
-
-    loadRooms();
-
+    try {
+      await api.delete(`/room/${id}`);
+      toast.success("Deleted", { id: t });
+      loadRooms();
+    } catch (err) {
+      toast.error(err.response?.data || "Cannot delete", { id: t });
+    }
   };
 
   return (
     <>
       <Navbar />
 
-      <div className="pt-24 px-10 min-h-screen bg-gray-200 text-black">
-        <div className="border-b-2 border-black w-full"></div>
-        <h1 className="mt-10 text-4xl font-bold text-orange-500 mb-10 text-center">
+      <div className="pt-24 px-10 min-h-screen bg-gray-100 text-black">
+
+        <h1 className="text-4xl font-bold text-orange-500 mb-10 text-center">
           Room Management
         </h1>
 
-        {/* FORM */}
+        {/* ================= FORM ================= */}
+        <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
 
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-10 text-black">
-
-          <h2 className="text-2xl font-bold mb-6">
-
-            {editingId ? "Edit Room" : "Add Room"}
-
-          </h2>
-
-          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6 text-black">
+          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
 
             <input
               type="number"
@@ -164,15 +187,19 @@ const AdminRooms = () => {
               required
             />
 
-            <input
-              type="text"
+            {/* 🔥 TYPE DROPDOWN */}
+            <select
               name="type"
-              placeholder="Room Type (Deluxe / Suite)"
               value={form.type}
               onChange={handleChange}
               className="border p-3 rounded"
               required
-            />
+            >
+              <option value="">Select Type</option>
+              <option>Standard</option>
+              <option>Suite</option>
+              <option>Deluxe</option>
+            </select>
 
             <input
               type="number"
@@ -184,96 +211,157 @@ const AdminRooms = () => {
               required
             />
 
-            <input
-              id="fileInput"
-              type="file"
-              onChange={handleFile}
-              className="border p-3 rounded"
-            />
+            {/* IMAGE */}
+            <div className="col-span-2">
 
-            <button
-              type="submit"
-              className="col-span-2 bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600"
-            >
-              {editingId ? "Update Room" : "Add Room"}
+              {form.preview && (
+                <img
+                  src={form.preview}
+                  className="w-32 h-32 object-cover rounded mb-3"
+                />
+              )}
+
+              <label className="flex flex-col items-center justify-center border-2 border-dashed p-6 rounded cursor-pointer hover:bg-gray-50">
+                <span>
+                  {form.image ? form.image.name : "Click to upload image"}
+                </span>
+
+                <input
+                  type="file"
+                  ref={fileRef}
+                  onChange={handleImage}
+                  className="hidden"
+                />
+              </label>
+
+            </div>
+
+            <button className="bg-orange-500 text-white py-3 rounded col-span-2">
+              {editingId ? "Update Room" : "Save Room"}
             </button>
 
           </form>
 
         </div>
 
-        {/* GRID */}
+        {/* ================= FILTER ================= */}
+        <div className="flex justify-between mb-6">
 
-        <div className="bg-white rounded-xl shadow-lg p-8">
-          <h2 className="text-2xl font-semibold mb-6">
-            Rooms
-          </h2>
+          <div className="flex gap-4">
 
-          <table className="w-full text-left">
+            <select
+              onChange={e => setTypeFilter(e.target.value)}
+              className="border p-2 rounded"
+            >
+              <option value="">All Types</option>
+              <option>Standard</option>
+              <option>Suite</option>
+              <option>Deluxe</option>
+            </select>
 
-            <thead className="bg-gray-100">
+            <input
+              type="number"
+              placeholder="Max Price"
+              onChange={e => setPriceFilter(e.target.value)}
+              className="border p-2 rounded"
+            />
 
-              <tr>
+          </div>
 
-                <th className="p-4">Image</th>
-                <th className="p-4">Room No</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Price</th>
-                <th className="p-4 text-center items-center">Actions</th>
+          <input
+            placeholder="Search Room No..."
+            onChange={e => setSearch(e.target.value)}
+            className="border px-3 py-2 rounded w-64"
+          />
 
+        </div>
+
+        {/* ================= TABLE ================= */}
+        <div className="bg-white p-6 rounded shadow">
+
+          <table className="w-full border-separate border-spacing-y-3">
+
+            <thead>
+              <tr className="bg-gray-100 text-center">
+                <th className="p-3">Image</th>
+                <th>Room No</th>
+                <th>Type</th>
+                <th>Price</th>
+                <th>Action</th>
               </tr>
-
             </thead>
 
             <tbody>
+              {currentData.map(room => (
+                <tr key={room.id} className="bg-white shadow rounded text-center">
 
-              {rooms.map(room => (
-
-                <tr key={room.id} className="border-b">
-
-                  <td className="p-4">
-
+                  <td className="p-3">
                     <img
                       src={`https://localhost:7257${room.imagePath}`}
-                      className="w-20 h-20 object-cover rounded"
+                      className="w-14 h-14 rounded mx-auto"
                     />
-
                   </td>
 
-                  <td className="p-4">{room.roomNo}</td>
+                  <td>{room.roomNo}</td>
+                  <td>{room.type}</td>
+                  <td>₹{room.pricePerDay}</td>
 
-                  <td className="p-4">{room.type}</td>
-
-                  <td className="p-4">₹{room.pricePerDay}</td>
-
-                  <td className="px-4 py-12 flex justify-center gap-6">
-
-                    <Pencil
-                      size={20}
-                      className="cursor-pointer text-blue-500"
-                      onClick={() => handleEdit(room)}
-                    />
-
-                    <Trash2
-                      size={20}
-                      className="cursor-pointer text-red-500"
-                      onClick={() => handleDelete(room.id)}
-                    />
-
+                  <td className="py-4">
+                    <div className="flex justify-center gap-4">
+                      <Pencil
+                        className="text-blue-500 cursor-pointer"
+                        onClick={() => handleEdit(room)}
+                      />
+                      <Trash2
+                        className="text-red-500 cursor-pointer"
+                        onClick={() => handleDelete(room.id)}
+                      />
+                    </div>
                   </td>
 
                 </tr>
-
               ))}
-
             </tbody>
 
           </table>
 
+          {/* ================= PAGINATION ================= */}
+          <div className="flex justify-between items-center mt-6">
+
+            <div>
+              Page Size:
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                className="ml-2 border p-1 rounded"
+              >
+                <option>5</option>
+                <option>10</option>
+                <option>20</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1 rounded ${
+                    currentPage === i + 1
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-200"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+
+          </div>
+
         </div>
 
       </div>
-
     </>
   );
 };

@@ -1,69 +1,52 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "../App.css";
 
 const Navbar = () => {
   const navRef = useRef();
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
-  const timeoutRef = useRef(null);
   const [role, setRole] = useState("");
-  const [showAdminDropdown, setShowAdminDropdown] = useState(false);
+  const timeoutRef = useRef(null);
 
-  // Check login status
   useEffect(() => {
     const token = localStorage.getItem("token");
-const name = localStorage.getItem("username");
-const userRole = localStorage.getItem("role");
+    const name = localStorage.getItem("username");
+    const userRole = localStorage.getItem("role");
 
-if (token) {
-  setIsLoggedIn(true);
-  setUsername(name);
-  setRole(userRole);
-}
+    if (token) {
+      setIsLoggedIn(true);
+      setUsername(name);
+      setRole(userRole);
+    }
   }, []);
 
-  // Scroll effect
+  // scroll effect
   useEffect(() => {
     const handleScroll = () => {
-      if (window.scrollY >= 80) {
-        navRef.current.classList.add("navdark");
+      if (window.scrollY >= 50) {
+        navRef.current.classList.add("bg-[#1a0033]", "shadow-lg");
       } else {
-        navRef.current.classList.remove("navdark");
+        navRef.current.classList.remove("bg-[#1a0033]", "shadow-lg");
       }
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const handleMouseEnter = () => {
+  const show = (setter) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setShowDropdown(true);
+    setter(true);
   };
 
-  const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => {
-      setShowDropdown(false);
-    }, 300);
+  const hide = (setter) => {
+    timeoutRef.current = setTimeout(() => setter(false), 200);
   };
 
-  const handleAdminEnter = () => {
-  if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  setShowAdminDropdown(true);
-};
-
-const handleAdminLeave = () => {
-  timeoutRef.current = setTimeout(() => {
-    setShowAdminDropdown(false);
-  }, 300);
-};
-  // Logout
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    localStorage.removeItem("role");
+    localStorage.clear();
     setIsLoggedIn(false);
     navigate("/login");
   };
@@ -71,128 +54,112 @@ const handleAdminLeave = () => {
   return (
     <nav
       ref={navRef}
-      className="nav w-full px-6 md:px-10 py-4 flex justify-between items-center fixed top-0 left-0 z-50 transition-all duration-300 bg-transparent"
+      className="fixed top-0 left-0 w-full z-50 px-8 py-4 flex justify-between items-center backdrop-blur-md bg-[#12002b]/80 transition-all duration-300"
     >
-      {/* Logo */}
+      {/* LOGO */}
       <div
-        className="text-3xl md:text-4xl font-bold text-orange-400 cursor-pointer"
         onClick={() => navigate("/")}
+        className="text-4xl font-extrabold text-orange-400 cursor-pointer tracking-wide"
       >
         SAFNAM
       </div>
 
-      {/* Desktop Menu */}
-      <ul className="hidden md:flex gap-6 items-center text-white font-semibold text-lg">
-        <li onClick={() => navigate("/")} className="cursor-pointer hover:text-orange-400">
+      {/* MENU */}
+      <ul className="hidden md:flex items-center gap-8 text-white font-semibold text-lg">
+
+        <li onClick={() => navigate("/")} className="hover:text-orange-400 cursor-pointer">
           Home
         </li>
 
-        <li onClick={() => navigate("/photos")} className="cursor-pointer hover:text-orange-400">
+        <li onClick={() => navigate("/photos")} className="hover:text-orange-400 cursor-pointer">
           Photos
         </li>
 
-        {/* Booking Dropdown */}
+        {/* BOOKING */}
         <li
           className="relative cursor-pointer hover:text-orange-400"
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={() => show(setShowDropdown)}
+          onMouseLeave={() => hide(setShowDropdown)}
         >
           Booking ▾
+
           {showDropdown && (
-            <ul className="absolute top-8 left-0 bg-white text-black rounded shadow-lg py-2 w-44">
-              <li onClick={() => navigate("/booktable")} className="px-4 py-2 hover:bg-orange-100">
-                Book Table
-              </li>
-              <li onClick={() => navigate("/bookroom")} className="px-4 py-2 hover:bg-orange-100">
-                Book Room
-              </li>
-              <li onClick={() => navigate("/bookorder")} className="px-4 py-2 hover:bg-orange-100">
-                Book Order
-              </li>
-            </ul>
+            <div className="absolute top-10 left-0 bg-white text-black rounded-xl shadow-xl w-48 overflow-hidden animate-fadeIn">
+              {[
+                { name: "Book Table", path: "/booktable" },
+                { name: "Book Room", path: "/bookroom" },
+                { name: "Book Order", path: "/bookorder" }
+              ].map((item, i) => (
+                <div
+                  key={i}
+                  onClick={() => navigate(item.path)}
+                  className="px-5 py-3 hover:bg-orange-100 cursor-pointer transition"
+                >
+                  {item.name}
+                </div>
+              ))}
+            </div>
           )}
         </li>
-        
+
+        {/* ADMIN */}
         {role === "Admin" && (
-  <li
-    className="relative cursor-pointer hover:text-orange-400"
-    onMouseEnter={handleAdminEnter}
-    onMouseLeave={handleAdminLeave}
-  >
-    Admin ▾
+          <li
+            className="relative cursor-pointer hover:text-orange-400"
+            onMouseEnter={() => show(setShowAdminDropdown)}
+            onMouseLeave={() => hide(setShowAdminDropdown)}
+          >
+            Admin ▾
 
-    {showAdminDropdown && (
-      <ul className="absolute top-8 left-0 bg-white text-black rounded shadow-lg py-2 w-48">
+            {showAdminDropdown && (
+              <div className="absolute top-10 left-0 bg-white text-black rounded-xl shadow-xl w-52 overflow-hidden animate-fadeIn">
+                {[
+                  ["Menu", "/admin/menu"],
+                  ["Rooms", "/admin/rooms"],
+                  ["Room Booking", "/admin/roombooking"],
+                  ["Orders", "/admin/order"],
+                  ["Tables", "/admin/table"],
+                  ["Table Booking", "/admin/booktable"]
+                ].map(([name, path], i) => (
+                  <div
+                    key={i}
+                    onClick={() => navigate(path)}
+                    className="px-5 py-3 hover:bg-orange-100 cursor-pointer transition"
+                  >
+                    {name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </li>
+        )}
 
-        <li
-          onClick={() => navigate("/admin/menu")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Menu
-        </li>
-
-        <li
-          onClick={() => navigate("/admin/rooms")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Rooms
-        </li>
-
-        <li
-          onClick={() => navigate("/admin/roombooking")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Room Booking
-        </li>
-
-        <li
-          onClick={() => navigate("/admin/order")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Orders
-        </li>
-
-        <li
-          onClick={() => navigate("/admin/table")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Tables
-        </li>
-
-        <li
-          onClick={() => navigate("/admin/booktable")}
-          className="px-4 py-2 hover:bg-orange-100"
-        >
-          Table Booking
-        </li>
-
-      </ul>
-    )}
-  </li>
-)}
-        {/* AUTH SECTION */}
+        {/* AUTH */}
         {!isLoggedIn ? (
           <>
             <button
               onClick={() => navigate("/login")}
-              className="bg-orange-400 px-5 py-2 rounded font-bold hover:bg-orange-500"
+              className="bg-orange-500 px-5 py-2 rounded-full font-bold hover:bg-orange-600 transition"
             >
               Login
             </button>
 
             <button
               onClick={() => navigate("/register")}
-              className="bg-white text-black px-5 py-2 rounded font-bold"
+              className="bg-white text-black px-5 py-2 rounded-full font-bold hover:bg-gray-200 transition"
             >
               Register
             </button>
           </>
         ) : (
-          <div className="flex items-center gap-4">
-            <span className="text-orange-300">Hi, {username}</span>
+          <div className="flex items-center gap-4 bg-white/10 px-4 py-2 rounded-full">
+            <span className="text-orange-300 font-semibold">
+              Hi, {username}
+            </span>
+
             <button
               onClick={handleLogout}
-              className="bg-red-500 px-4 py-2 rounded font-bold"
+              className="bg-red-500 px-4 py-1 rounded-full text-white hover:bg-red-600 transition"
             >
               Logout
             </button>
@@ -200,6 +167,7 @@ const handleAdminLeave = () => {
         )}
       </ul>
 
+      {/* MOBILE ICON */}
       <div className="md:hidden text-3xl text-white cursor-pointer">☰</div>
     </nav>
   );

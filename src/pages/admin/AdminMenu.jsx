@@ -2,33 +2,74 @@ import React, { useEffect, useState, useRef } from "react";
 import api from "../../services/api";
 import { Pencil, Trash2 } from "lucide-react";
 import Navbar from "../../Components/Navbar";
+import toast from "react-hot-toast";
 
 const AdminMenu = () => {
 
   const [menu, setMenu] = useState([]);
-  const [editId, setEditId] = useState(null);
+  const [filteredMenu, setFilteredMenu] = useState([]);
 
+  const [editId, setEditId] = useState(null);
   const fileInputRef = useRef(null);
+
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [availableFilter, setAvailableFilter] = useState("");
+
+  const [pageSize, setPageSize] = useState(5);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [form, setForm] = useState({
     itemName: "",
     price: "",
     type: "",
     isAvailable: false,
-    image: null
+    image: null,
+    preview: null //for image preview
+
   });
 
-  // LOAD MENU
+  // ================= LOAD =================
   const loadMenu = async () => {
     const res = await api.get("/menu");
     setMenu(res.data);
+    setFilteredMenu(res.data);
   };
 
   useEffect(() => {
     loadMenu();
   }, []);
 
-  // INPUT CHANGE
+  // ================= FILTER =================
+  useEffect(() => {
+    let data = [...menu];
+
+    if (search) {
+      data = data.filter(m =>
+        m.itemName.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    if (typeFilter) {
+      data = data.filter(m => m.type === typeFilter);
+    }
+
+    if (availableFilter !== "") {
+      data = data.filter(m => m.isAvailable === (availableFilter === "true"));
+    }
+
+    setFilteredMenu(data);
+    setCurrentPage(1);
+
+  }, [search, typeFilter, availableFilter, menu]);
+
+  // ================= PAGINATION =================
+  const indexOfLast = currentPage * pageSize;
+  const indexOfFirst = indexOfLast - pageSize;
+  const currentData = filteredMenu.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(filteredMenu.length / pageSize);
+
+  // ================= FORM =================
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
 
@@ -38,15 +79,17 @@ const AdminMenu = () => {
     });
   };
 
-  // IMAGE
   const handleImage = (e) => {
+    const file = e.target.files[0];
+
     setForm({
       ...form,
-      image: e.target.files[0]
+      image: file,
+      preview: URL.createObjectURL(file) // 🔥 preview
     });
   };
 
-  // RESET FORM
+
   const resetForm = () => {
     setEditId(null);
 
@@ -55,7 +98,8 @@ const AdminMenu = () => {
       price: "",
       type: "",
       isAvailable: false,
-      image: null
+      image: null,
+      preview: null
     });
 
     if (fileInputRef.current) {
@@ -63,12 +107,11 @@ const AdminMenu = () => {
     }
   };
 
-  // SAVE
+  // ================= SAVE =================
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const data = new FormData();
-
+    const data = new FormData(); 
     data.append("itemName", form.itemName);
     data.append("price", form.price);
     data.append("type", form.type);
@@ -78,28 +121,41 @@ const AdminMenu = () => {
       data.append("image", form.image);
     }
 
-    try {
+    const t = toast.loading("Saving...");
 
+    try {
       if (editId) {
-        await api.put(`/menu/${editId}`, data);
-        alert("Menu item updated successfully");
+        data.append("id", editId);
+        await api.put(`/menu/${editId}`, data); // ✅ FIXED
+        toast.success("Updated successfully", { id: t });
       } else {
         await api.post("/menu", data);
-        alert("Menu item added successfully");
+        toast.success("Added successfully", { id: t });
       }
 
       resetForm();
       loadMenu();
 
     } catch (err) {
-      console.error(err);
-      alert("Error saving menu item");
+      toast.error(err.response?.data || "Error saving", { id: t });
     }
   };
 
-  // EDIT
-  const handleEdit = (item) => {
+  // ================= DELETE =================
+  const handleDelete = async (id) => {
+    const t = toast.loading("Deleting...");
 
+    try {
+      await api.delete(`/menu/${id}`);
+      toast.success("Deleted", { id: t });
+      loadMenu();
+    } catch (err) {
+      toast.error(err.response?.data || "Cannot delete", { id: t });
+    }
+  };
+
+  // ================= EDIT =================
+  const handleEdit = (item) => {
     setEditId(item.id);
 
     setForm({
@@ -107,205 +163,226 @@ const AdminMenu = () => {
       price: item.price,
       type: item.type,
       isAvailable: item.isAvailable,
-      image: null
+      image: null,
+      preview: `https://localhost:7257${item.imagePath}`
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  // DELETE
-  const handleDelete = async (id) => {
-
-    if (!window.confirm("Delete this menu item?")) return;
-
-    await api.delete(`/menu/${id}`);
-    alert("Menu item deleted");
-
-    loadMenu();
   };
 
   return (
     <>
       <Navbar />
 
-      <div className="pt-24 px-10 min-h-screen bg-gray-200 text-black">
-        <div className="border-b-2 border-black w-full"></div>
-        <h1 className="mt-10 text-4xl font-bold text-orange-500 mb-10 text-center">
+      <div className="pt-24 px-10 min-h-screen bg-gray-100 text-black">
+
+        <h1 className="text-4xl font-bold text-orange-500 mb-10 text-center">
           Menu Management
         </h1>
 
-        {/* FORM */}
+        {/* ================= FORM ================= */}
         <div className="bg-white rounded-xl shadow-lg p-8 mb-12">
 
-          <h2 className="text-2xl font-semibold mb-6">
-            {editId ? "Edit Menu Item" : "Add Menu Item"}
-          </h2>
+          <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
 
-          <form onSubmit={handleSubmit}>
+            <input
+              name="itemName"
+              value={form.itemName}
+              onChange={handleChange}
+              placeholder="Item Name"
+              required
+              className="border p-3 rounded"
+            />
 
-            <div className="grid grid-cols-2 gap-6">
+            <input
+              name="price"
+              type="number"
+              value={form.price}
+              onChange={handleChange}
+              placeholder="Price"
+              required
+              className="border p-3 rounded"
+            />
 
+            <select
+              name="type"
+              value={form.type}
+              onChange={handleChange}
+              className="border p-3 rounded"
+              required
+            >
+              <option value="">Select Type</option>
+              <option>Popular Breakfast</option>
+              <option>Special Lunch</option>
+              <option>Lovely Dinner</option>
+            </select>
+
+            <label className="flex items-center gap-2">
               <input
-                name="itemName"
-                value={form.itemName}
+                type="checkbox"
+                name="isAvailable"
+                checked={form.isAvailable}
                 onChange={handleChange}
-                placeholder="Item Name"
-                required
-                className="border rounded-lg p-3 w-full"
               />
+              Available
+            </label>
 
-              <input
-                name="price"
-                type="number"
-                value={form.price}
-                onChange={handleChange}
-                placeholder="Price"
-                required
-                className="border rounded-lg p-3 w-full"
-              />
+            {/* 🔥 MODERN FILE UPLOAD */}
+            <div className="col-span-2">
 
-              <input
-                name="type"
-                value={form.type}
-                onChange={handleChange}
-                placeholder="Type (Breakfast/Lunch)"
-                required
-                className="border rounded-lg p-3 w-full"
-              />
-
-              <label className="flex items-center gap-3 mt-3 text-lg">
-                <input
-                  type="checkbox"
-                  name="isAvailable"
-                  checked={form.isAvailable}
-                  onChange={handleChange}
+              {form.preview && (
+                <img
+                  src={form.preview}
+                  className="w-32 h-32 object-cover mb-3 rounded"
                 />
-                Available
+              )}
+
+              <label className="flex flex-col items-center justify-center border-2 border-dashed p-6 rounded cursor-pointer hover:bg-gray-50">
+                <span>
+                  {form.image ? form.image.name : "Click to upload image"}
+                </span>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImage}
+                  className="hidden"
+                />
               </label>
 
-            </div>
-
-            {/* FILE INPUT FIXED UI */}
-            <div className="mt-6">
-
-              <label className="block mb-2 font-medium">
-                Upload Image
-              </label>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImage}
-                className="w-full border rounded-lg p-3 bg-gray-50"
-              />
-
-            </div>
-
-            <div className="flex gap-4 mt-8">
-
-              <button
-                className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg"
-              >
-                {editId ? "Update" : "Save"}
-              </button>
-
-              {editId && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="bg-gray-400 text-white px-8 py-3 rounded-lg"
-                >
-                  Cancel
-                </button>
+              {!form.image && editId && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Leave empty to keep existing image
+                </p>
               )}
 
             </div>
+
+            <button className="bg-orange-500 text-white py-3 rounded col-span-2">
+              {editId ? "Update" : "Save"}
+            </button>
 
           </form>
 
         </div>
 
-        {/* TABLE */}
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        {/* ================= FILTER ================= */}
+        <div className="flex justify-between mb-6">
 
-          <h2 className="text-2xl font-semibold mb-6">
-            Menu Items
-          </h2>
+          <div className="flex gap-4">
 
-          <table className="w-full text-left">
+            <select onChange={e => setTypeFilter(e.target.value)}
+              className="border p-2 rounded">
+              <option value="">All Types</option>
+              <option>Popular Breakfast</option>
+              <option>Special Lunch</option>
+              <option>Lovely Dinner</option>
+            </select>
 
-            <thead className="bg-gray-100">
+            <select onChange={e => setAvailableFilter(e.target.value)}
+              className="border p-2 rounded">
+              <option value="">All</option>
+              <option value="true">Available</option>
+              <option value="false">Not Available</option>
+            </select>
 
-              <tr>
+          </div>
 
-                <th className="p-4">Image</th>
-                <th className="p-4">Name</th>
-                <th className="p-4">Price</th>
-                <th className="p-4">Type</th>
-                <th className="p-4">Available</th>
-                <th className="p-4 text-center">Actions</th>
+          <input
+            placeholder="Search Items..."
+            onChange={e => setSearch(e.target.value)}
+            className="border px-3 py-2 rounded w-64"
+          />
 
+        </div>
+
+        {/* ================= TABLE ================= */}
+        <div className="bg-white p-6 rounded shadow">
+
+          <table className="w-full border-separate border-spacing-y-3">
+
+            <thead>
+              <tr className="bg-gray-100 text-center">
+                <th className="p-3">Image</th>
+                <th>Name</th>
+                <th>Price</th>
+                <th>Type</th>
+                <th>Available</th>
+                <th>Action</th>
               </tr>
-
             </thead>
 
             <tbody>
+              {currentData.map(item => (
+                <tr
+                  key={item.id}
+                  className="bg-white shadow rounded-lg text-center"
+                >
 
-              {menu.map((item) => (
-
-                <tr key={item.id} className="border-b hover:bg-gray-50">
-
-                  <td className="p-4">
+                  <td className="p-3">
                     <img
                       src={`https://localhost:7257${item.imagePath}`}
-                      className="w-16 h-16 rounded-lg object-cover"
-                      alt=""
+                      className="w-14 h-14 rounded mx-auto"
                     />
                   </td>
 
-                  <td className="p-4 font-medium">
-                    {item.itemName}
-                  </td>
+                  <td>{item.itemName}</td>
+                  <td>₹{item.price}</td>
+                  <td>{item.type}</td>
+                  <td>{item.isAvailable ? "Yes" : "No"}</td>
 
-                  <td className="p-4">
-                    ₹{item.price}
-                  </td>
-
-                  <td className="p-4">
-                    {item.type}
-                  </td>
-
-                  <td className="p-4">
-                    {item.isAvailable ? "Yes" : "No"}
-                  </td>
-
-                  <td className="p-4">
-
-                    <div className="flex justify-center gap-6">
-
+                  <td className="py-4">
+                    <div className="flex justify-center gap-4">
                       <Pencil
-                        size={20}
-                        className="cursor-pointer text-blue-500"
+                        className="text-blue-500 cursor-pointer"
                         onClick={() => handleEdit(item)}
                       />
-
                       <Trash2
-                        size={20}
-                        className="cursor-pointer text-red-500"
+                        className="text-red-500 cursor-pointer"
                         onClick={() => handleDelete(item.id)}
                       />
-
                     </div>
-
                   </td>
 
                 </tr>
-
               ))}
-
             </tbody>
 
           </table>
+
+          {/* ================= PAGINATION ================= */}
+          <div className="flex justify-between items-center mt-6">
+
+            <div>
+              Page Size:
+              <select
+                value={pageSize}
+                onChange={e => setPageSize(Number(e.target.value))}
+                className="ml-2 border p-1 rounded"
+              >
+                <option>5</option>
+                <option>10</option>
+                <option>20</option>
+              </select>
+            </div>
+
+            <div className="flex gap-2">
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`px-3 py-1 rounded ${
+                    currentPage === i + 1
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-200"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+
+          </div>
 
         </div>
 
