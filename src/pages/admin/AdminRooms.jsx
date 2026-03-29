@@ -15,6 +15,7 @@ const AdminRooms = () => {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
 
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,10 +57,14 @@ const AdminRooms = () => {
       data = data.filter(r => r.pricePerDay <= priceFilter);
     }
 
+    if (activeFilter !== "") {
+      data = data.filter(m => m.isActive === (activeFilter === "true"));
+    }
+
     setFilteredRooms(data);
     setCurrentPage(1);
 
-  }, [search, typeFilter, priceFilter, rooms]);
+  }, [search, typeFilter, priceFilter, activeFilter, rooms]);
 
   // ================= PAGINATION =================
   const indexOfLast = currentPage * pageSize;
@@ -150,15 +155,33 @@ const AdminRooms = () => {
   };
 
   // ================= DELETE =================
-  const handleDelete = async (id) => {
-    const t = toast.loading("Deleting...");
+  // const handleDelete = async (id) => {
+  //   const t = toast.loading("Deleting...");
+
+  //   try {
+  //     await api.delete(`/room/${id}`);
+  //     toast.success("Deleted", { id: t });
+  //     loadRooms();
+  //   } catch (err) {
+  //     toast.error(err.response?.data || "Cannot delete", { id: t });
+  //   }
+  // };
+
+  const handleToggle = async (room) => {
+    const t = toast.loading("Updating status...");
 
     try {
-      await api.delete(`/room/${id}`);
-      toast.success("Deleted", { id: t });
+      await api.put(`/room/${room.id}/status?isActive=${!room.isActive}`);
+
+      toast.success(
+        room.isActive ? "Set to Inactive" : "Activated",
+        { id: t }
+      );
+
       loadRooms();
+
     } catch (err) {
-      toast.error(err.response?.data || "Cannot delete", { id: t });
+      toast.error("Failed to update", { id: t });
     }
   };
 
@@ -258,6 +281,13 @@ const AdminRooms = () => {
               <option>Suite</option>
               <option>Deluxe</option>
             </select>
+            
+            <select onChange={(e) => setActiveFilter(e.target.value)}
+              className="border p-2 rounded">
+              <option value="">All</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
 
             <input
               type="number"
@@ -287,6 +317,7 @@ const AdminRooms = () => {
                 <th>Room No</th>
                 <th>Type</th>
                 <th>Price</th>
+                <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -305,6 +336,14 @@ const AdminRooms = () => {
                   <td>{room.roomNo}</td>
                   <td>{room.type}</td>
                   <td>₹{room.pricePerDay}</td>
+                  {/* 🔥 STATUS TOGGLE */}
+                  <td>
+                    <span className={`px-2 py-1 rounded text-white text-sm ${
+                      room.isActive ? "bg-green-500" : "bg-gray-400"
+                    }`}>
+                      {room.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
 
                   <td className="py-4">
                     <div className="flex justify-center gap-4">
@@ -312,10 +351,18 @@ const AdminRooms = () => {
                         className="text-blue-500 cursor-pointer"
                         onClick={() => handleEdit(room)}
                       />
-                      <Trash2
-                        className="text-red-500 cursor-pointer"
-                        onClick={() => handleDelete(room.id)}
-                      />
+                      {/* 🔥 TOGGLE SWITCH */}
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={room.isActive}
+                          onChange={() => handleToggle(room)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-orange-500 relative">
+                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
+                        </div>
+                      </label>
                     </div>
                   </td>
 

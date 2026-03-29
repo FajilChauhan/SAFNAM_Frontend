@@ -21,7 +21,7 @@ const BookRoom = () => {
 
   // fetch rooms
   useEffect(() => {
-    api.get("/room")
+    api.get("/room/Active")
       .then(res => setRooms(res.data))
       .catch(() => toast.error("Failed to load rooms"));
   }, []);

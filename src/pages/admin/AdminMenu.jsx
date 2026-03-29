@@ -15,6 +15,7 @@ const AdminMenu = () => {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [availableFilter, setAvailableFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
 
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,10 +59,14 @@ const AdminMenu = () => {
       data = data.filter(m => m.isAvailable === (availableFilter === "true"));
     }
 
+    if (activeFilter !== "") {
+      data = data.filter(m => m.isActive === (activeFilter === "true"));
+    }
+
     setFilteredMenu(data);
     setCurrentPage(1);
 
-  }, [search, typeFilter, availableFilter, menu]);
+  }, [search, typeFilter, availableFilter, activeFilter, menu]);
 
   // ================= PAGINATION =================
   const indexOfLast = currentPage * pageSize;
@@ -142,15 +147,33 @@ const AdminMenu = () => {
   };
 
   // ================= DELETE =================
-  const handleDelete = async (id) => {
-    const t = toast.loading("Deleting...");
+  // const handleDelete = async (id) => {
+  //   const t = toast.loading("Deleting...");
+
+  //   try {
+  //     await api.delete(`/menu/${id}`);
+  //     toast.success("Deleted", { id: t });
+  //     loadMenu();
+  //   } catch (err) {
+  //     toast.error(err.response?.data || "Cannot delete", { id: t });
+  //   }
+  // };
+
+  const handleToggle = async (item) => {
+    const t = toast.loading("Updating status...");
 
     try {
-      await api.delete(`/menu/${id}`);
-      toast.success("Deleted", { id: t });
+      await api.put(`/menu/${item.id}/status?isActive=${!item.isActive}`);
+
+      toast.success(
+        item.isActive ? "Set to Inactive" : "Activated",
+        { id: t }
+      );
+
       loadMenu();
+
     } catch (err) {
-      toast.error(err.response?.data || "Cannot delete", { id: t });
+      toast.error("Failed to update", { id: t });
     }
   };
 
@@ -285,6 +308,13 @@ const AdminMenu = () => {
               <option value="true">Available</option>
               <option value="false">Not Available</option>
             </select>
+            
+            <select onChange={(e) => setActiveFilter(e.target.value)}
+              className="border p-2 rounded">
+              <option value="">All</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
 
           </div>
 
@@ -299,7 +329,7 @@ const AdminMenu = () => {
         {/* ================= TABLE ================= */}
         <div className="bg-white p-6 rounded shadow">
 
-          <table className="w-full border-separate border-spacing-y-3">
+          <table className="w-full border-separate border-spacing-y-4">
 
             <thead>
               <tr className="bg-gray-100 text-center">
@@ -307,7 +337,7 @@ const AdminMenu = () => {
                 <th>Name</th>
                 <th>Price</th>
                 <th>Type</th>
-                <th>Available</th>
+                <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -316,7 +346,7 @@ const AdminMenu = () => {
               {currentData.map(item => (
                 <tr
                   key={item.id}
-                  className="bg-white shadow rounded-lg text-center"
+                  className="bg-white shadow rounded-lg text-center hover:shadow-md transition"
                 >
 
                   <td className="p-3">
@@ -329,18 +359,39 @@ const AdminMenu = () => {
                   <td>{item.itemName}</td>
                   <td>₹{item.price}</td>
                   <td>{item.type}</td>
-                  <td>{item.isAvailable ? "Yes" : "No"}</td>
 
+                  {/* 🔥 STATUS TOGGLE */}
+                  <td>
+                    <span className={`px-2 py-1 rounded text-white text-sm ${
+                      item.isActive ? "bg-green-500" : "bg-gray-400"
+                    }`}>
+                      {item.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </td>
+
+                  {/* 🔥 ACTION */}
                   <td className="py-4">
-                    <div className="flex justify-center gap-4">
+                    <div className="flex justify-center items-center gap-4">
+
+                      {/* EDIT */}
                       <Pencil
                         className="text-blue-500 cursor-pointer"
                         onClick={() => handleEdit(item)}
                       />
-                      <Trash2
-                        className="text-red-500 cursor-pointer"
-                        onClick={() => handleDelete(item.id)}
-                      />
+
+                      {/* 🔥 TOGGLE SWITCH */}
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={item.isActive}
+                          onChange={() => handleToggle(item)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-orange-500 relative">
+                          <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition peer-checked:translate-x-5"></div>
+                        </div>
+                      </label>
+
                     </div>
                   </td>
 
@@ -381,11 +432,8 @@ const AdminMenu = () => {
                 </button>
               ))}
             </div>
-
           </div>
-
         </div>
-
       </div>
     </>
   );

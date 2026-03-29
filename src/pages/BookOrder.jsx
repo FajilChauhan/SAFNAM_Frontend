@@ -21,7 +21,7 @@ const BookOrder = () => {
 
   // ✅ load menu
   useEffect(() => {
-    api.get("/menu")
+    api.get("/menu/Active")
       .then(res => setMenuItems(res.data))
       .catch(() => toast.error("Failed to load menu"));
   }, []);

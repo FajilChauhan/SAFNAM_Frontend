@@ -29,7 +29,7 @@ const BookTable = () => {
 
   // ✅ FETCH TABLES
   useEffect(() => {
-    api.get("/RestaurantTables")
+    api.get("/RestaurantTables/Active")
       .then(res => setTables(res.data))
       .catch(() => toast.error("Failed to load tables"));
   }, []);
